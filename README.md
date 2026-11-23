@@ -2,6 +2,9 @@
 
 Create a plain-text paste and share it by URL. Each paste can have a time limit, a view limit, or both.
 
+- **Live Application**: [https://pastebin-lite-green-five.vercel.app](https://pastebin-lite-green-five.vercel.app)
+- **Health Check**: [https://pastebin-lite-green-five.vercel.app/api/healthz](https://pastebin-lite-green-five.vercel.app/api/healthz)
+
 ## Run locally
 
 Use Node.js 24 and a Neon Postgres database. Set `DATABASE_MIGRATION_URL` in `.env.migrate` to the migration owner's Neon connection string. Copy `.env.example` to `.env` and set `DATABASE_URL` to the separate `pastebin_runtime` connection string. The schema creates that role without login. Enable login and assign a generated password through the migration connection before the first run.
@@ -50,11 +53,11 @@ Omit a limit to leave it unset. An unset limit is `null` in the read response. E
 - PostgreSQL caps retained content at 64 MiB and 10,000 rows. A create request reclaims up to 32 timed-out and 32 view-exhausted rows before admitting a new paste. The budget covers logical content bytes. Neon disk usage also includes tables, indexes, and history.
 - Liveness and static assets do not connect to Neon. Cleanup has no timer, and there is no periodic counter sync to keep the compute awake. Real reads and writes can still consume the project's monthly compute allocation.
 
-## Pastebin feature coverage
+## Scope & Architecture Tradeoffs
 
-All implemented features are available anonymously, with no accounts, tiers, ads, or payments.
+All implemented features are available anonymously, with no accounts, tiers, ads, or tracking.
 
-| Area | Implemented | Gaps relative to the requested checklist |
+| Area | Implemented | Deliberately Omitted / Future Scope |
 | --- | --- | --- |
 | Authoring and expiry | Plain-text editor, custom TTL, permanent pastes, arbitrary view limits, one-view burn, unlisted links | Expiry preset buttons, syntax picker and highlighting, drag-and-drop files, public discovery, owner-only or password-protected pastes |
 | Viewer and sharing | Monospace text with wrapping, copy text, copy link, absolute expiry display and remaining views | Raw endpoint, download, clone, embeds, QR, line numbers, wrap/fullscreen controls, total views, creation time, live countdown, size and syntax metadata |
