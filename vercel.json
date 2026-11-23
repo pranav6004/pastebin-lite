@@ -2,12 +2,28 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "express",
   "regions": ["iad1"],
-  "headers": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" }
-      ]
+      "src": "/(.*)",
+      "headers": { "X-Robots-Tag": "noindex, nofollow, noarchive" },
+      "continue": true
+    },
+    {
+      "src": "/(?:api/pastes|p)/[A-Za-z0-9_-]{22}/?",
+      "methods": ["GET", "HEAD"],
+      "transforms": [
+        { "type": "request.headers", "op": "delete", "target": { "key": "x-pastebin-conditional" } }
+      ],
+      "continue": true
+    },
+    {
+      "src": "/(?:api/pastes|p)/[A-Za-z0-9_-]{22}/?",
+      "methods": ["GET", "HEAD"],
+      "has": [{ "type": "header", "key": "if-none-match", "value": "\\*" }],
+      "transforms": [
+        { "type": "request.headers", "op": "set", "target": { "key": "x-pastebin-conditional" }, "args": "1" }
+      ],
+      "continue": true
     }
   ]
 }

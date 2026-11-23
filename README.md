@@ -45,7 +45,7 @@ Omit a limit to leave it unset. An unset limit is `null` in the read response. E
 ## Design decisions
 
 - Express serves the JSON API and the HTML viewer. The Vercel function connects to Neon through its HTTP driver, and PostgreSQL holds all persistent state.
-- A single conditional UPDATE claims a view and returns the paste. PostgreSQL rechecks the limit for competing updates, so the last allowed request succeeds with `remaining_views: 0`. Unlimited pastes use a read-only branch of the same query. Both read routes share the budget. HEAD and bodyless conditional reads only check availability.
+- A single conditional UPDATE claims a view and returns the paste. PostgreSQL rechecks the limit for competing updates, so the last allowed request succeeds with `remaining_views: 0`. Unlimited pastes use a read-only branch of the same query. Both read routes share the budget. HEAD and bodyless conditional reads only check availability. A Vercel request transform preserves the wildcard conditional signal for the application.
 - The viewer escapes paste content and sets `Cache-Control: no-store`. A random URL grants access to anyone who has it. Expiry blocks future reads immediately.
 - PostgreSQL caps retained content at 64 MiB and 10,000 rows. A create request reclaims up to 32 timed-out and 32 view-exhausted rows before admitting a new paste. The budget covers logical content bytes. Neon disk usage also includes tables, indexes, and history.
 - Liveness and static assets do not connect to Neon. Cleanup has no timer, and there is no periodic counter sync to keep the compute awake. Real reads and writes can still consume the project's monthly compute allocation.

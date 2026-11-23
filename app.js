@@ -12,6 +12,11 @@ function positiveInteger(value) {
   return Number.isSafeInteger(value) && value > 0;
 }
 
+function isConditionalRead(req) {
+  return req.get("If-None-Match")?.trim() === "*"
+    || (process.env.VERCEL === "1" && req.get("X-Pastebin-Conditional") === "1");
+}
+
 export function createApp(query, now = () => new Date()) {
   const app = express();
   const store = pasteStore(query);
@@ -74,7 +79,7 @@ export function createApp(query, now = () => new Date()) {
   }
 
   app.get("/api/pastes/:id", async (req, res) => {
-    const fresh = req.fresh;
+    const fresh = isConditionalRead(req);
     const withBody = req.method === "GET" && !fresh;
     const paste = await readPaste(req, withBody);
     if (!paste) return res.status(404).json({ error: "Paste not found." });
@@ -83,7 +88,7 @@ export function createApp(query, now = () => new Date()) {
   });
 
   app.get("/p/:id", async (req, res) => {
-    const fresh = req.fresh;
+    const fresh = isConditionalRead(req);
     const withBody = req.method === "GET" && !fresh;
     const paste = await readPaste(req, withBody);
     if (!paste) return res.status(404).send(errorPage("Paste unavailable", "This paste may have expired, reached its view limit, or never existed."));
