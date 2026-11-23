@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env --watch server.js",
     "start": "node --env-file-if-exists=.env server.js",
-    "db:setup": "node --env-file-if-exists=.env db/setup.js",
+    "db:setup": "node --env-file-if-exists=.env.migrate db/setup.js",
     "test": "node --test"
   },
   "dependencies": {

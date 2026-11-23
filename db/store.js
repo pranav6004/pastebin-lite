@@ -6,36 +6,38 @@ export function connect() {
 }
 
 export function pasteStore(query) {
-  return {
-    async ping() {
-      await query("SELECT 1 FROM pastes LIMIT 1");
-    },
+  const available = "id = $1 AND (expires_at IS NULL OR expires_at > $2)";
 
+  return {
     async create(content, expiresAt, maxViews) {
       const id = randomBytes(16).toString("base64url");
-      await query(
-        `INSERT INTO pastes (id, content, expires_at, remaining_views)
-         VALUES ($1, $2, $3, $4)`,
+      const [row] = await query(
+        "SELECT public.create_paste($1, $2, $3, $4) AS accepted",
         [id, content, expiresAt, maxViews],
       );
-      return id;
+      return row.accepted ? id : null;
     },
 
-    async read(id, now, consume) {
-      const available = "id = $1 AND (expires_at IS NULL OR expires_at > $2)";
+    async available(id, now) {
       const rows = await query(
-        consume
-          ? `WITH counted AS (
-               UPDATE pastes SET remaining_views = remaining_views - 1
+        `SELECT 1 FROM public.pastes
+         WHERE ${available} AND (remaining_views IS NULL OR remaining_views > 0)`,
+        [id, now],
+      );
+      return rows.length !== 0;
+    },
+
+    async read(id, now) {
+      const rows = await query(
+        `WITH counted AS (
+               UPDATE public.pastes SET remaining_views = remaining_views - 1
                WHERE ${available} AND remaining_views > 0
                RETURNING content, remaining_views, expires_at
              )
              SELECT content, remaining_views, expires_at FROM counted
              UNION ALL
-             SELECT content, remaining_views, expires_at FROM pastes
-             WHERE ${available} AND remaining_views IS NULL`
-          : `SELECT content, remaining_views, expires_at FROM pastes
-             WHERE ${available} AND (remaining_views IS NULL OR remaining_views > 0)`,
+             SELECT content, remaining_views, expires_at FROM public.pastes
+             WHERE ${available} AND remaining_views IS NULL`,
         [id, now],
       );
       const row = rows[0];

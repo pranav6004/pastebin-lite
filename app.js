@@ -5,6 +5,8 @@ import { composePage, errorPage, pastePage } from "./pages.js";
 
 const pasteId = /^[A-Za-z0-9_-]{22}$/;
 const bodyLimit = "1mb";
+const contentLimit = 768 * 1024;
+const htmlLimit = 4_000_000;
 
 function positiveInteger(value) {
   return Number.isSafeInteger(value) && value > 0;
@@ -16,6 +18,7 @@ export function createApp(query, now = () => new Date()) {
 
   app.disable("x-powered-by");
   app.disable("etag");
+  app.enable("case sensitive routing");
   app.use((_req, res, next) => {
     res.set({
       "Content-Security-Policy": "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'",
@@ -33,20 +36,15 @@ export function createApp(query, now = () => new Date()) {
 
   app.get("/", (_req, res) => res.send(composePage()));
 
-  app.get("/api/healthz", async (_req, res) => {
-    try {
-      await store.ping();
-      res.json({ ok: true });
-    } catch (error) {
-      console.error("Database health check failed:", error.code ?? error.name);
-      res.status(503).json({ ok: false, error: "Storage unavailable." });
-    }
-  });
+  app.get("/api/healthz", (_req, res) => res.json({ ok: true }));
 
   app.post("/api/pastes", express.json({ limit: bodyLimit }), async (req, res) => {
     const { content, ttl_seconds: ttl, max_views: maxViews } = req.body ?? {};
     if (typeof content !== "string" || !content.trim() || content.includes("\0") || !content.isWellFormed()) {
       return res.status(400).json({ error: "Enter non-empty text with valid Unicode and no null characters." });
+    }
+    if (Buffer.byteLength(content) > contentLimit) {
+      return res.status(413).json({ error: "Paste content exceeds 768 KiB." });
     }
     if (ttl !== undefined && !positiveInteger(ttl)) {
       return res.status(400).json({ error: "ttl_seconds must be a positive integer." });
@@ -55,31 +53,45 @@ export function createApp(query, now = () => new Date()) {
       return res.status(400).json({ error: "max_views must be a positive integer." });
     }
 
-    const expiresAt = ttl === undefined ? null : new Date(now().getTime() + ttl * 1000);
+    const createdAt = now();
+    const expiresAt = ttl === undefined ? null : new Date(createdAt.getTime() + ttl * 1000);
     if (expiresAt && (!Number.isFinite(expiresAt.getTime()) || expiresAt.getUTCFullYear() > 9999)) {
       return res.status(400).json({ error: "ttl_seconds is too large." });
     }
 
     const id = await store.create(content, expiresAt?.toISOString() ?? null, maxViews ?? null);
+    if (!id) {
+      return res.status(507).json({ error: "Paste storage is full. Try again later." });
+    }
     const protocol = process.env.VERCEL === "1" ? "https" : req.protocol;
     res.status(201).json({ id, url: `${protocol}://${req.get("host")}/p/${id}` });
   });
 
-  async function readPaste(req) {
+  async function readPaste(req, withBody) {
     if (!pasteId.test(req.params.id)) return null;
-    return store.read(req.params.id, now().toISOString(), req.method === "GET");
+    const time = now().toISOString();
+    return withBody ? store.read(req.params.id, time) : store.available(req.params.id, time);
   }
 
   app.get("/api/pastes/:id", async (req, res) => {
-    const paste = await readPaste(req);
+    const fresh = req.fresh;
+    const withBody = req.method === "GET" && !fresh;
+    const paste = await readPaste(req, withBody);
     if (!paste) return res.status(404).json({ error: "Paste not found." });
+    if (!withBody) return res.status(fresh ? 304 : 200).type("json").end();
     res.json(paste);
   });
 
   app.get("/p/:id", async (req, res) => {
-    const paste = await readPaste(req);
+    const fresh = req.fresh;
+    const withBody = req.method === "GET" && !fresh;
+    const paste = await readPaste(req, withBody);
     if (!paste) return res.status(404).send(errorPage("Paste unavailable", "This paste may have expired, reached its view limit, or never existed."));
-    res.send(pastePage(paste));
+    if (!withBody) return res.status(fresh ? 304 : 200).type("html").end();
+    const html = pastePage(paste);
+    // Older pastes can exceed the new cap. Keep their text available without oversized HTML.
+    if (Buffer.byteLength(html) > htmlLimit) return res.type("text").send(paste.content);
+    res.send(html);
   });
 
   app.use((req, res) => {
