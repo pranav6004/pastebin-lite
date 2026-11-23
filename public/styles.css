@@ -17,6 +17,7 @@
   --editor-ink: #f0f2f6;
   --editor-muted: #b4bece;
   --editor-rule: #363d4a;
+  --editor-control-border: #69778a;
   --editor-focus: #9cb9ff;
   --editor-shadow: 0 12px 24px rgb(23 27 34 / 8%);
   --mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
@@ -136,6 +137,7 @@ h1 {
 }
 
 .editor :focus-visible { outline-color: var(--editor-focus); }
+.editor-label { border-bottom: 0; }
 
 textarea, .paste-text {
   width: 100%;
@@ -152,6 +154,7 @@ textarea, .paste-text {
 textarea {
   display: block;
   min-height: 280px;
+  border-block: 1px solid var(--editor-control-border);
   resize: vertical;
   outline-offset: -3px;
 }
@@ -165,7 +168,6 @@ textarea::placeholder { color: var(--editor-muted); }
   min-height: 44px;
   align-items: center;
   padding: 8px 20px;
-  border-top: 1px solid var(--editor-rule);
   color: var(--editor-muted);
   font: 0.8125rem/1.5 var(--mono);
   font-variant-numeric: tabular-nums;
@@ -294,8 +296,10 @@ input::placeholder { color: var(--muted); }
 .skip-link:focus { transform: none; }
 
 @media (max-width: 680px) {
+  main { padding-block-start: 32px; }
+  .intro { margin-block-end: 24px; }
   .workspace { grid-template-columns: minmax(0, 1fr); }
-  textarea { min-height: 220px; }
+  textarea { min-height: 200px; }
   .share-controls { grid-template-columns: 1fr 1fr; }
   .share-controls input { grid-column: 1 / -1; }
 }
