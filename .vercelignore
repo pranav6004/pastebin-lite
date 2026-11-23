@@ -1,0 +1,5 @@
+.env
+.env.*
+.planning/
+.hallmark/
+coverage/
